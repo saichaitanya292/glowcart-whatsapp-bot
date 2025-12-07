@@ -1,77 +1,60 @@
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. Webhook verification (GET)
+    // Always allow browser GET check
     if (request.method === "GET") {
+      // Webhook Verification Logic
       const mode = url.searchParams.get("hub.mode");
       const token = url.searchParams.get("hub.verify_token");
       const challenge = url.searchParams.get("hub.challenge");
 
-      // VERIFY_TOKEN must match what you put in Meta config
       if (mode === "subscribe" && token === env.VERIFY_TOKEN) {
         return new Response(challenge, { status: 200 });
-      } else {
-        return new Response("Forbidden", { status: 403 });
       }
+
+      // Normal GET request → show bot is online
+      return new Response("GlowCart WhatsApp Bot is LIVE ✓", {
+        status: 200,
+        headers: { "Content-Type": "text/plain" },
+      });
     }
 
-    // 2. Incoming messages (POST)
+    // Handle incoming WhatsApp Webhook events
     if (request.method === "POST") {
-      let data;
+      const data = await request.json();
+
       try {
-        data = await request.json();
-        console.log("Incoming webhook:", JSON.stringify(data));
+        const message =
+          data.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
+        const from =
+          data.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
 
-        const entry = data.entry?.[0];
-        const change = entry?.changes?.[0];
-        const message = change?.value?.messages?.[0];
-
-        // Only reply to real user messages
-        if (message && message.type === "text") {
-          const from = message.from;          // user’s phone number
-          const text = message.text.body;     // user’s message
-
-          // Build reply text
-          const replyText =
-            `Hi! 👋 This is *GlowCart*.\n` +
-            `You said: "${text}".\n\n` +
-            `Try sending:\n` +
-            `1️⃣ products – to see items\n` +
-            `2️⃣ help – to contact support`;
-
-          // Send reply via WhatsApp Cloud API
-          const url = `https://graph.facebook.com/v21.0/${env.PHONE_NUMBER_ID}/messages`;
-
-          const payload = {
-            messaging_product: "whatsapp",
-            to: from,
-            type: "text",
-            text: { body: replyText }
-          };
-
-          const resp = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${env.WABA_TOKEN}`,
-            },
-            body: JSON.stringify(payload),
-          });
-
-          const respBody = await resp.text();
-          console.log("Send message response:", resp.status, respBody);
+        // Auto reply
+        if (message && from) {
+          await fetch(
+            `https://graph.facebook.com/v18.0/${env.PHONE_NUMBER_ID}/messages`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${env.WABA_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                messaging_product: "whatsapp",
+                to: from,
+                text: { body: `You said: ${message}` },
+              }),
+            }
+          );
         }
-
       } catch (err) {
-        console.error("Error handling webhook:", err);
+        console.error("Webhook error:", err);
       }
 
-      // Always respond 200 so Meta knows we received it
       return new Response("EVENT_RECEIVED", { status: 200 });
     }
 
-    // Fallback
-    return new Response("GlowCart WhatsApp Bot is running", { status: 200 });
+    return new Response("OK", { status: 200 });
   },
 };
