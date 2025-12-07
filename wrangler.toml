@@ -1,0 +1,12 @@
+name = "glowcart-bot"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Fill this once from Cloudflare dashboard (Workers page)
+account_id = "YOUR_CLOUDFLARE_ACCOUNT_ID"
+
+workers_dev = true
+
+[vars]
+# These will be overridden by Cloudflare dashboard secrets if you want
+VERIFY_TOKEN = "glowcart_verify"
